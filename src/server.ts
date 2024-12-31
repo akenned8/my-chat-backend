@@ -1,4 +1,5 @@
 import app from "./app";
+import { corsOptions } from "./app";
 import http from 'http';
 import { Server, Socket } from 'socket.io';
 import cors from 'cors';
@@ -7,13 +8,10 @@ import { saveAndBroadcastMessage } from './controllers/messageController';
 const server = http.createServer(app);
 
 const io = new Server(server, {
-    cors: {
-        origin: "http://localhost:3000", //process.env.UI_ORIGIN,
-        methods: ["*"]
-    }
+    cors: corsOptions
 });
 
-app.use(cors());
+app.use(cors(corsOptions));
 
 interface ChatSocket extends Socket {
     sessionId?: string;

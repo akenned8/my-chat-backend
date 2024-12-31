@@ -1,5 +1,4 @@
 import express from 'express';
-import http from 'http';
 import cors from 'cors';
 import dotenv from "dotenv";
 import { localconfig } from './config/localconfig';
@@ -43,11 +42,9 @@ const app = express();
 app.use(express.json());
 
 // CORS configuration
-const corsOptions = {
-    origin: "http://localhost:3000", // Ensure this matches your frontend's URL
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true // Allow cookies or authentication headers
+export const corsOptions = {
+    origin: ["http://localhost:3000", "http://my-chat-app-bucket.s3-website.localhost.localstack.cloud:4566"], // Ensure this matches your frontend's URL
+    methods: ["*"]
 };
 
 app.use(cors(corsOptions));
