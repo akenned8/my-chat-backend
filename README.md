@@ -41,3 +41,5 @@ make deploy-local
 ```
 npm run dev
 ```
+
+6. (optional) Run the frontend [my-chat-app](https://github.com/akenned8/my-chat-app)
