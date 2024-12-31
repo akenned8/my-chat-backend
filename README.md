@@ -1,5 +1,5 @@
 # my-chat-backend
-A working chat room backend to practice user and session management with Node and DynamoDB
+A working chat room backend to practice user and session management with Node and DynamoDB, websockets, and AWS deployment
 
 Frontend repo is: [my-chat-app](https://github.com/akenned8/my-chat-app)
 
