@@ -38,19 +38,19 @@ make deploy-local
 ```
 
 5. Start the server. 
-You can run it in a Docker container, 
+    You can run it in a Docker container, 
 
-```
-make server-up
-```
+    ```
+    make server-up
+    ```
 
-run it in the VS Code debugger, or
+    run it in the VS Code debugger, or
 
-run it locally with hot reloading (good for fast development but doesn't support breakpoints like VSCode debugger)
+    run it locally with hot reloading (good for fast development but doesn't support breakpoints like VSCode debugger)
 
-```
-npm run dev 
-```
+    ```
+    npm run dev 
+    ```
 
 
 6. (optional) Run the frontend [my-chat-app](https://github.com/akenned8/my-chat-app)
