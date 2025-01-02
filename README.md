@@ -28,7 +28,7 @@ AWS_SECRET_ACCESS_KEY=test
 3. Start LocalStack:
 
 ```
-docker-compose up -d
+make localstack-up 
 ```
 
 4. Provision all DynamoDB tables in LocalStack via CloudFormation template (templates/dynamodb.yaml)
@@ -37,9 +37,20 @@ docker-compose up -d
 make deploy-local
 ```
 
-5. Start the application via VSCode debugger or
+5. Start the server. 
+You can run it in a Docker container, 
+
 ```
-npm run dev
+make server-up
 ```
+
+run it in the VS Code debugger, or
+
+run it locally with hot reloading (good for fast development but doesn't support breakpoints like VSCode debugger)
+
+```
+npm run dev 
+```
+
 
 6. (optional) Run the frontend [my-chat-app](https://github.com/akenned8/my-chat-app)

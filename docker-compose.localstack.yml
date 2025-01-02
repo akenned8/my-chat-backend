@@ -8,3 +8,12 @@ services:
       - SERVICES=dynamodb,cloudformation
       - DEFAULT_REGION=us-east-1
       - EDGE_PORT=4566
+      - PERSISTENCE=1
+    volumes:
+      - "${PWD}/.localstack:/var/lib/localstack"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

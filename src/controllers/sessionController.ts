@@ -24,6 +24,7 @@ export const createSession = async (req: Request, res: Response) => {
 
         res.json({ sessionId });
     } catch (error) {
+        console.error('Error saving message:', error);
         res.status(500).json({ error: 'Failed to create session' });
     }
 };

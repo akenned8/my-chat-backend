@@ -1,0 +1,17 @@
+services:
+  server:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=LCL
+      - AWS_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=dummy
+      - AWS_SECRET_ACCESS_KEY=dummy
+      - DB_URI=http://localstack:4566
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
