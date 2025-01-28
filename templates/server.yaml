@@ -1,0 +1,237 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Deploy a Dockerized Chat Server on a single EC2 instance behind an ALB, 
+  pulling the image from ECR and connecting to DynamoDB using an Auto Scaling Group.
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The VPC where ALB and EC2 will be launched.
+  SubnetId1:
+    Type: AWS::EC2::Subnet::Id
+    Description: A public subnet where the ALB and EC2 instance can be placed.
+  SubnetId2:
+    Type: AWS::EC2::Subnet::Id
+    Description: A public subnet where the ALB and EC2 instance can be placed.
+  KeyPairName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Name of an existing EC2 KeyPair to enable SSH access.
+  AmiId:
+    Type: AWS::EC2::Image::Id
+    Default: ami-08f4c15f97e28c8d6
+    Description: The AMI ID for the EC2 instance.
+  EcrImageUrl:
+    Type: String
+    Description: The ECR image URI (e.g. 123456789012.dkr.ecr.us-east-1.amazonaws.com/my-chat-app:latest)
+  ChatMessagesTable:
+    Type: String
+    Default: ChatMessages
+    Description: DynamoDB table for chat messages.
+  ChatSessionsTable:
+    Type: String
+    Default: ChatSessions
+    Description: DynamoDB table for chat sessions.
+  SessionUsersTable:
+    Type: String
+    Default: SessionUsers
+    Description: DynamoDB table for session users.
+  InstanceType:
+    Type: String
+    Default: t4g.micro
+    AllowedValues:
+      - t4g.nano
+      - t4g.micro
+      - t4g.small
+    Description: EC2 instance size for the chat server.
+
+Resources:
+  # ----------------------------------------------------------------------
+  # 1) IAM Role + Instance Profile
+  #    - Grants the EC2 instance permissions to read/write DynamoDB
+  # ----------------------------------------------------------------------
+  ChatServerInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Path: "/"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
+        # In production, use a custom policy that restricts to the relevant tables only.
+      Policies:
+        - PolicyName: ECRAccessPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                Resource:
+                  - arn:aws:ecr:us-east-2:913524913648:repository/my-chat-app/server-containers
+
+  ChatServerInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref ChatServerInstanceRole
+
+  # ----------------------------------------------------------------------
+  # 2) Security Groups
+  #    a) ALB SG: inbound from Internet on 80
+  #    b) EC2 SG: inbound from ALB SG on 80 and SSH from specific IP
+  # ----------------------------------------------------------------------
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for ALB
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  EC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Chat Server EC2
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 72.226.13.174/32 # Replace with your IP
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  # ----------------------------------------------------------------------
+  # 3) ALB + Target Group + Listener
+  # ----------------------------------------------------------------------
+  ChatServerALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub "${AWS::StackName}-alb"
+      Scheme: internet-facing
+      Subnets:
+        - !Ref SubnetId1
+        - !Ref SubnetId2
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+      LoadBalancerAttributes:
+        - Key: idle_timeout.timeout_seconds
+          Value: "60"
+
+  ChatServerTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub "${AWS::StackName}-tg"
+      Port: 80
+      Protocol: HTTP
+      VpcId: !Ref VpcId
+      TargetType: instance
+      HealthCheckIntervalSeconds: 30
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: "/health"
+
+  ChatServerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ChatServerTargetGroup
+      LoadBalancerArn: !Ref ChatServerALB
+      Port: 80
+      Protocol: HTTP
+
+  # ----------------------------------------------------------------------
+  # 4) Launch Template
+  #    - Specifies the configuration for EC2 instances in the ASG
+  # ----------------------------------------------------------------------
+  ChatServerLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub "${AWS::StackName}-template"
+      LaunchTemplateData:
+        ImageId: !Ref AmiId
+        InstanceType: !Ref InstanceType
+        SecurityGroupIds:
+          - !Ref EC2SecurityGroup
+        IamInstanceProfile:
+          Arn: !GetAtt ChatServerInstanceProfile.Arn
+        KeyName: !Ref KeyPairName
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            # Update and install Docker
+            yum update -y
+            amazon-linux-extras install docker -y
+            service docker start
+            usermod -a -G docker ec2-user
+
+            # Install AWS CLI v2 (if not pre-installed)
+            if [ ! -f "/usr/local/bin/aws" ]; then
+              curl "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o "awscliv2.zip"
+              unzip awscliv2.zip
+              ./aws/install
+            fi
+
+            # Log into ECR
+            aws ecr get-login-password --region ${AWS::Region} | docker login --username AWS --password-stdin ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
+
+            # Pull the container image
+            docker pull ${EcrImageUrl}
+
+            # Run your container on port 80 => host port 80
+            docker run -d -p 80:5000 \
+              -e DYNAMO_TABLE_1=${ChatMessagesTable} \
+              -e DYNAMO_TABLE_2=${ChatSessionsTable} \
+              -e DYNAMO_TABLE_3=${SessionUsersTable} \
+              ${EcrImageUrl}
+
+  # ----------------------------------------------------------------------
+  # 5) Auto Scaling Group
+  #    - Manages EC2 instances and ensures they are registered with the Target Group
+  # ----------------------------------------------------------------------
+  ChatServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref SubnetId1
+        - !Ref SubnetId2
+      MinSize: "1"
+      MaxSize: "1"
+      DesiredCapacity: "1"
+      TargetGroupARNs:
+        - !Ref ChatServerTargetGroup
+      LaunchTemplate:
+        LaunchTemplateId: !Ref ChatServerLaunchTemplate
+        Version: !GetAtt ChatServerLaunchTemplate.LatestVersionNumber
+      Tags:
+        - Key: Name
+          Value: "Chat-Server-ASG"
+          PropagateAtLaunch: true
+
+Outputs:
+  ALBDNSName:
+    Description: Public DNS of the ALB
+    Value: !GetAtt ChatServerALB.DNSName

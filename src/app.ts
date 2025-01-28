@@ -43,7 +43,7 @@ app.use(express.json());
 
 // CORS configuration
 export const corsOptions = {
-    origin: ["http://localhost:3000", "http://my-chat-app-bucket.s3-website.localhost.localstack.cloud:4566"], // Ensure this matches your frontend's URL
+    origin: ["http://localhost:3000", "http://my-chat-app-bucket.s3-website.localhost.localstack.cloud:4566", "http://my-chat-app-bucket-prod.s3-website.us-east-2.amazonaws.com"], // Ensure this matches your frontend's URL
     methods: ["*"]
 };
 
