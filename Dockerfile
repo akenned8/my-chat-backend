@@ -17,10 +17,12 @@ RUN npm run build
 EXPOSE 5000
 
 # Set environment variables
-ENV NODE_ENV=LCL
-ENV AWS_REGION=us-east-1
-ENV AWS_ACCESS_KEY_ID=dummy
-ENV AWS_SECRET_ACCESS_KEY=dummy
+#REMEMBER TO MAKE THIS DYNAMIC
+# ENV NODE_ENV=LCL
+ENV NODE_ENV=PRD
+ENV AWS_REGION=us-east-2
+# ENV AWS_ACCESS_KEY_ID=dummy
+# ENV AWS_SECRET_ACCESS_KEY=dummy
 
 # Start the server
 CMD ["node", "dist/server.js"]
